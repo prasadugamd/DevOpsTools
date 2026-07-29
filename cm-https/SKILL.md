@@ -27,7 +27,7 @@ description: >-
 | PROD Hue deep dive | `CM_PROD_HUE_HTTPS_RUNBOOK.md` |
 | UAT JKS build script | `scripts/build_standalone_cm_keystores.sh` |
 
-All paths are relative to the `CDH_CM` workspace root.
+**Paths:** In DevOpsTools, files live under `cm-https/` (this folder). In the `CDH_CM` Cursor workspace, the same filenames are at the workspace root (skill at `.cursor/skills/cm-https-runbooks/`).
 
 ## Hard rules (never violate)
 

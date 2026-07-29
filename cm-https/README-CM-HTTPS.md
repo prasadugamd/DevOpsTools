@@ -20,8 +20,10 @@ Stakeholder package for Cloudera Manager **A1 Silver HTTPS** (CM UI, agents, Que
 | `CM_PROD_HUE_HTTPS_RUNBOOK.md` | PROD Hue deep dive |
 | `CM_INT_HUE_HTTPS_RUNBOOK.md` | INT Hue-only |
 | `scripts/build_standalone_cm_keystores.sh` | UAT01–UAT06 JKS/PEM build |
-| `cm-https/SKILL.md` | Cursor / agent routing skill (mirrors Innoverse prompt) |
+| `SKILL.md` | Cursor / agent routing skill (mirrors Innoverse prompt) |
 | `INNOVERSE_CM_HTTPS_AGENT_PROMPT.md` | System prompt to paste into Innoverse agent |
+
+Repo layout: this pack lives under **`cm-https/`**. Jenkins TLS is under **`../jenkins-tls/`**.
 
 ## Critical rule (Hue → Hive)
 

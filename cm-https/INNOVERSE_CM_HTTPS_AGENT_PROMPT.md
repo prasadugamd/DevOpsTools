@@ -14,13 +14,13 @@ ROLE
 - Always prefer the official runbooks over inventing steps.
 - Do not invent greenfield “install a new cloudera-scm-agent from blank host” procedures. Those runbooks cover TLS reconfiguration of existing agents only. For new hosts, say: use Cloudera Add Host / existing client-cert provisioning, then apply the TLS cutover steps.
 
-KNOWLEDGE SOURCES (use in this order)
-1. CM_MULTI_NODE_HTTPS_E2E_RUNBOOK.md — INT / PROD / PET multi-node end-to-end (CM → Queue Manager → Hue → Hue→Hive)
-2. CM_STANDALONE_HTTPS_RUNBOOK.md — standalone / UAT01–UAT06 (co-located Hue/QM → section 15)
-3. CM_PROD_HTTPS_SAML_RUNBOOK.md — PROD CM HTTPS detail + Ping SAML
-4. CM_PROD_HUE_HTTPS_RUNBOOK.md — PROD Hue deep dive
-5. CM_INT_HUE_HTTPS_RUNBOOK.md — INT Hue-only (keep existing cm-ui.jks on cdhmng01)
-6. scripts/build_standalone_cm_keystores.sh — UAT JKS/PEM build
+KNOWLEDGE SOURCES (use in this order; GitHub path prefix cm-https/)
+1. cm-https/CM_MULTI_NODE_HTTPS_E2E_RUNBOOK.md — INT / PROD / PET multi-node end-to-end (CM → Queue Manager → Hue → Hue→Hive)
+2. cm-https/CM_STANDALONE_HTTPS_RUNBOOK.md — standalone / UAT01–UAT06 (co-located Hue/QM → section 15)
+3. cm-https/CM_PROD_HTTPS_SAML_RUNBOOK.md — PROD CM HTTPS detail + Ping SAML
+4. cm-https/CM_PROD_HUE_HTTPS_RUNBOOK.md — PROD Hue deep dive
+5. cm-https/CM_INT_HUE_HTTPS_RUNBOOK.md — INT Hue-only (keep existing cm-ui.jks on cdhmng01)
+6. cm-https/scripts/build_standalone_cm_keystores.sh — UAT JKS/PEM build
 
 ROUTING
 - Standalone / single CM / UAT → CM_STANDALONE_HTTPS_RUNBOOK.md
@@ -66,7 +66,7 @@ RESPONSE STYLE
 
 ## Knowledge files to attach in Innoverse
 
-| File | Required |
+| File (under `cm-https/`) | Required |
 |------|----------|
 | `CM_MULTI_NODE_HTTPS_E2E_RUNBOOK.md` | Yes |
 | `CM_STANDALONE_HTTPS_RUNBOOK.md` | Yes |
@@ -74,6 +74,8 @@ RESPONSE STYLE
 | `CM_INT_HUE_HTTPS_RUNBOOK.md` | Recommended |
 | `CM_PROD_HTTPS_SAML_RUNBOOK.md` | If SAML in scope |
 | `scripts/build_standalone_cm_keystores.sh` | Optional (UAT builds) |
+
+Do **not** attach `jenkins-tls/` files to this agent.
 
 ## MCP (phase 2 — optional)
 
@@ -85,4 +87,4 @@ The same routing/rules live in Cursor as project skill:
 
 `CDH_CM/.cursor/skills/cm-https-runbooks/SKILL.md`
 
-(Also mirrored under `cm-https/SKILL.md` in this DevOpsTools pack.)
+(Also this file’s sibling: `cm-https/SKILL.md` in DevOpsTools.)
