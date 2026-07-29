@@ -7,7 +7,8 @@ Guide for enabling **CM Web UI HTTPS (port 7183)** and **agent TLS (port 7182)**
 | CM version | 7.x (validated on **7.11.3** — UAT-05) |
 | Format | JKS keystore + truststore |
 | Build script | `scripts/build_standalone_cm_keystores.sh --uat <01-06>` |
-| Out of scope | Kafka/ZK cluster keystores, Hue (see `CM_INT_HUE_HTTPS_RUNBOOK.md`) |
+| Out of scope (detail) | Kafka/ZK cluster keystores; full multi-node Hue HA — see `CM_MULTI_NODE_HTTPS_E2E_RUNBOOK.md` |
+| Co-located add-ons | YARN Queue Manager, Hue UI, Hue→Hive — **§15** (must follow combined-trust rules) |
 
 ---
 
@@ -27,6 +28,7 @@ Guide for enabling **CM Web UI HTTPS (port 7183)** and **agent TLS (port 7182)**
 12. [Standalone vs multi-node notes](#12-standalone-vs-multi-node-notes)
 13. [Troubleshooting](#13-troubleshooting)
 14. [Rollback](#14-rollback)
+15. [Co-located Queue Manager, Hue UI, Hue→Hive](#15-co-located-queue-manager-hue-ui-huehive)
 
 ---
 
@@ -307,7 +309,8 @@ sudo chmod 640 /etc/cloudera-scm-server/cloudera-scm-server.properties
 | Setting | Keep as-is |
 |---------|------------|
 | Navigator TLS/SSL Trust Store File | `/etc/certificate/ra-admin-truststore.jks` (legacy; optional) |
-| Hue `ssl_cacerts` | Use A1 `root.pem` — **not** `ra-admin-truststore.pem` |
+
+**Hue (if co-located — see §15):** do **not** set `ssl_cacerts` to A1 `root.pem` alone. Use **`hue-trust-combined.pem`** (A1 root + `ra-admin-truststore.pem` / Amdocs Internal CA).
 
 **Save** → **Cloudera Management Service → Actions → Start** (or Restart).
 
@@ -361,6 +364,7 @@ http://uat-05-cloudera.uat.corp.amdocs.azr:7180/cmf/localLogin
 | CM UI (7183) | Firehose Debug Server |
 | Agent RPC server (7182) | Kafka / ZooKeeper / cluster TLS |
 | YARN Queue Manager (if configured) | Agent **client** identity (`keystore-kafka`) |
+| | Hue UI (uses **PEM** on Hue path — §15) |
 
 ---
 
@@ -493,6 +497,8 @@ CM UI cert alone is not enough — browsers must trust the customer root.
 | Browser **Nicht sicher** but openssl shows A1 cert | Import **A1 Root CA** on VDI (SSL works; browser trust only) |
 | Firehose errors | Firehose keystore = `keystore-kafka.jks`, not `cm-ui.jks` |
 | `openssl` empty cert | Check DNS/connectivity; use `2>&1` |
+| Hue login OK; Hive No databases / `NoneType`… | `ssl_cacerts` was A1-only — use **`hue-trust-combined.pem`** (§15); `chown hue:hue`; restart Hue |
+| Hue `REQUESTS_CA_BUNDLE does not exist` | `chmod 755 /etc/cloudera /etc/cloudera/security`; verify `sudo -u hue test -r` |
 
 ---
 
@@ -524,10 +530,86 @@ sudo systemctl restart cloudera-scm-agent
 
 ## Related runbooks
 
-- `scripts/build_standalone_cm_keystores.sh` — JKS build for UAT01–UAT06
+- `scripts/build_standalone_cm_keystores.sh` — JKS build for UAT01–UAT06 (also builds Hue PEMs when leaf is co-located)
+- `CM_MULTI_NODE_HTTPS_E2E_RUNBOOK.md` — INT/PROD/PET multi-node E2E (CM + QM + Hue + Hive)
 - `CM_PROD_HTTPS_SAML_RUNBOOK.md` — PROD HA implementation + SAML
-- `CM_INT_HUE_HTTPS_RUNBOOK.md` — Hue PEM (separate from CM UI)
-- `CM_PROD_HUE_HTTPS_RUNBOOK.md` — Hue on dedicated hosts
+- `CM_INT_HUE_HTTPS_RUNBOOK.md` / `CM_PROD_HUE_HTTPS_RUNBOOK.md` — Hue deep dive
+
+---
+
+## 15. Co-located Queue Manager, Hue UI, Hue→Hive
+
+On standalone/UAT, CM and Hue often share **one host**. Align with multi-node lessons as follows.
+
+### 15.1 YARN Queue Manager
+
+| Item | Guidance |
+|------|----------|
+| Keystore | Reuse **`cm-ui.jks`** / CM truststore (same as CM UI) |
+| SAN | CM leaf must include the hostname users use for QM |
+| After CM TLS change | Restart Queue Manager if CM prompts stale config |
+
+No separate A1 leaf is required if QM runs on the CM hostname covered by `cm-ui.jks`.
+
+### 15.2 Hue UI (co-located)
+
+| Item | Guidance |
+|------|----------|
+| Format | **PEM** under `/etc/cloudera/security/hue/` (not JKS) |
+| Cert | Same A1 leaf as CM if SANs include Hue name(s), **or** dedicated Hue leaf |
+| Enable TLS | **`ssl_enable` must be checked** — paths alone do nothing |
+| LB / Server | `ssl_certificate` = `hue-fullchain.pem`; `ssl_private_key` = Hue key |
+| Parent dirs | `chmod 755 /etc/cloudera /etc/cloudera/security` |
+| Ownership | **`hue:hue`**; key `600`; PEMs `644` |
+| User URL | `https://<host>:8889/hue/` (not `http://…:8888`) |
+
+```bash
+sudo mkdir -p /etc/cloudera/security/hue
+# copy hue-fullchain.pem, hue key, root.pem
+sudo chmod 755 /etc/cloudera /etc/cloudera/security
+sudo chown -R hue:hue /etc/cloudera/security/hue
+sudo chmod 644 /etc/cloudera/security/hue/*.pem
+sudo chmod 600 /etc/cloudera/security/hue/hue-*.key
+sudo -u hue test -r /etc/cloudera/security/hue/hue-fullchain.pem && echo OK
+```
+
+### 15.3 Hue → Hive (`ssl_cacerts`) — mandatory combined trust
+
+| Wrong | Right |
+|-------|-------|
+| `ssl_cacerts` = A1 `root.pem` **only** | `ssl_cacerts` = **`hue-trust-combined.pem`** |
+| Drop `ra-admin-truststore.pem` | Keep Amdocs Internal CA **inside** the combined file |
+
+```bash
+cat /etc/cloudera/security/hue/root.pem \
+    /etc/certificate/ra-admin-truststore.pem \
+  > /etc/cloudera/security/hue/hue-trust-combined.pem
+sudo chown hue:hue /etc/cloudera/security/hue/hue-trust-combined.pem
+sudo chmod 644 /etc/cloudera/security/hue/hue-trust-combined.pem
+grep -c "BEGIN CERTIFICATE" /etc/cloudera/security/hue/hue-trust-combined.pem   # >= 2
+```
+
+**CM → Hue → Configuration:**
+
+| Setting | Value |
+|---------|--------|
+| Enable TLS/SSL for Hue | ✓ Checked |
+| `ssl_certificate` | `/etc/cloudera/security/hue/hue-fullchain.pem` |
+| `ssl_private_key` | `/etc/cloudera/security/hue/hue-<env>.key` |
+| **`ssl_cacerts`** | **`/etc/cloudera/security/hue/hue-trust-combined.pem`** |
+
+Restart Hue Server → validate Hive editor (databases list + simple query).
+
+**Symptom if A1-only trust:** login works; **No databases found** / `'NoneType'…settimeout` / `'id'`.
+
+### 15.4 Standalone vs multi-node Hue
+
+| Topic | Standalone (this §15) | Multi-node |
+|-------|----------------------|------------|
+| Hue hosts | Often same as CM | cdhmng02 + cdhmng03 |
+| QM | Same host / `cm-ui.jks` | Same pattern on CM host |
+| `ssl_cacerts` | **Combined** (same rule) | **Combined** (same rule) |
+| Full E2E | This doc + §15 | `CM_MULTI_NODE_HTTPS_E2E_RUNBOOK.md` |
 
 ---
 
@@ -536,6 +618,7 @@ sudo systemctl restart cloudera-scm-agent
 | Date | Change |
 |------|--------|
 | 2026-07-02 | Added full CM UI config paths, internal property names, UAT-05 validation, ssl dir permissions |
+| 2026-07-28 | Aligned QM / Hue / Hue→Hive: fixed wrong A1-only `ssl_cacerts` note; added §15 combined trust |
 
 ---
 
